@@ -1,0 +1,14 @@
+[tool.poetry]
+name = "py-content-safety"
+version = "0.1.0"
+description = ""
+authors = ["Ricardo Cataldi <rcataldi@microsoft.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
