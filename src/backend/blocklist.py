@@ -49,8 +49,7 @@ data = {
        {
            "description": "violencia",
            "text": "pistola"
-       }
-       ,
+       },
        {
            "description": "violencia",
            "text": "arma"

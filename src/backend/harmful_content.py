@@ -10,14 +10,12 @@ subscription_key = os.environ["AZURE_CONTENTSAFETY_KEY"]
 api_version = os.environ["AZURE_CONTENTSAFETY_API_VERSION"]
 
 
-# Set up the API endpoint
 url = f"{endpoint}/contentsafety/text:shieldPrompt?api-version={api_version}"
 headers = {
         "Content-Type": "application/json",
         "Ocp-Apim-Subscription-Key": subscription_key
     }
 
-# Build the request body
 data = {
         "text": "Usted es un idiota"
     }

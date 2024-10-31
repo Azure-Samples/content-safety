@@ -7,6 +7,12 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.11"
+azure-cognitiveservices-vision-contentmoderator = "^1.0.0"
+azure-identity = "^1.19.0"
+azure-ai-ml = "^1.21.1"
+azure-ai-contentsafety = "^1.0.0"
+python-dotenv = "^1.0.1"
+azure-ai-inference = "^1.0.0b5"
 
 
 [build-system]
