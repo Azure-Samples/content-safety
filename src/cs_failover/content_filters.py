@@ -122,9 +122,9 @@ class ContentFilteringApp:
         if primary_result:
             secondary_result, category = self.secondary_filter.filter_content(content)
             if secondary_result:
-                if self.model_evaluation(content):
-                    self.add_to_blocklist(content, category)
-                    return None
+                self.add_to_blocklist(content, category)
+            if self.model_evaluation(content):
+                self.add_to_blocklist(content, category)
         return content
 
     def model_evaluation(self, content: str):
