@@ -13,6 +13,7 @@ load_dotenv()
 IMAGEM_LIMPA = "./images/image_1.jpg"
 IMAGEM_VIOLENTA = "./images/image_2.jpg"
 IMAGEM_SEXUAL = "./images/image_3.jpg"
+CARNAVAL = "./images/image_4.jpg"
 
 
 async def analyze_text(text_name: str, image_path: str):
@@ -34,10 +35,11 @@ async def analyze_text(text_name: str, image_path: str):
             print(e)
             raise
 
-    print(f"Texto do tipo {text_name}: \n", response.as_dict())
+    print(f"Imagem do tipo {text_name}: \n", response.as_dict())
 
 
 if __name__ == "__main__":
     asyncio.run(analyze_text("IMAGEM_LIMPA", IMAGEM_LIMPA))
     asyncio.run(analyze_text("IMAGEM_VIOLENTA", IMAGEM_VIOLENTA))
     asyncio.run(analyze_text("IMAGEM_SEXUAL", IMAGEM_SEXUAL))
+    asyncio.run(analyze_text("CARNAVAL", CARNAVAL))

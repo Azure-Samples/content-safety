@@ -6,17 +6,17 @@ import logging
 import dotenv
 import requests
 
+from openai import AzureOpenAI
 from azure.ai.contentsafety import ContentSafetyClient, BlocklistClient
-from azure.ai.inference import ChatCompletionsClient
 from azure.core.credentials import AzureKeyCredential
-from azure.core.exceptions import HttpResponseError
+from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
 from azure.ai.contentsafety.models import AnalyzeTextOptions, AddOrUpdateTextBlocklistItemsOptions, TextBlocklistItem
 
 
 dotenv.load_dotenv(dotenv.find_dotenv())
 
 CS_KEY = os.getenv("FOUNDRY_CONTENTSAFETY_KEY", "")
-AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
+AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT", "")
 AZURE_OPENAI_DEPLOYMENT_KEY = os.getenv("AZURE_OPENAI_DEPLOYMENT_KEY", "")
 DEFAULT_CS_CREDENTIAL = AzureKeyCredential(CS_KEY)
 DEFAULT_PHI_CREDENTIAL = AzureKeyCredential(AZURE_OPENAI_DEPLOYMENT_KEY)
@@ -119,7 +119,7 @@ class ContentFilteringApp:
             str or None: The original content if it passes the filters and model evaluation,
                          otherwise None if the content is added to the blocklist.
         """
-        
+
         primary_result, category = self.main_filter.filter_content(content)
         if primary_result:
             secondary_result, category = self.secondary_filter.filter_content(content)
@@ -146,39 +146,36 @@ class ContentFilteringApp:
                 requests.exceptions.RequestException: If there is an error during the API request.
         """
 
-        client = ChatCompletionsClient(
-            endpoint=AZURE_OPENAI_ENDPOINT or "",
-            credential=DEFAULT_PHI_CREDENTIAL
+        client = AzureOpenAI(
+            api_version="2024-12-01-preview",
+            azure_endpoint=AZURE_OPENAI_ENDPOINT,
+            api_key=AZURE_OPENAI_DEPLOYMENT_KEY
         )
-
-        payload = {
-            "messages": [
-                {
-                    "role": "system",
-                    "content": """
-                        You are a evaluation assistant.\n
-                        Check the content below and provide feedback if it is harmfull or not.\n
-                        **Answer only 'Harmfull' or 'Not Harmfull'**.
-                    """
-                },
-                {
-                    "role": "user",
-                    "content": content
-                }
-            ],
-            "max_tokens": 15,
-            "temperature": 0.1,
-            "presence_penalty": 0,
-            "frequency_penalty": 0
-            }
         try:
-            response = client.complete(payload)
-            for item in response:
-                if item.choices[0] == "Harmfull":
-                    return False
+            response = client.chat.completions.create(
+                messages=[
+                    {"role": "system",
+                     "content": "You are a evaluation assistant.\n Check the content below and provide feedback if it is harmfull or not.\n **Answer only 'Harmfull' or 'Not Harmfull'**."
+                    },
+                    {
+                        "role": "user",
+                        "content": content
+                    }
+                ],
+                max_tokens=15,
+                temperature=0.1,
+                presence_penalty=0,
+                frequency_penalty=0,
+                model=os.getenv("AZURE_OPENAI_DEPLOYMENT_ID", ""),
+            )
+            print(f"Model Evaluation triggered for content: {content}")
+            print(f"Model Evaluation response: {response.choices[0].message.content}")
+            if response.choices[0].message.content == "Harmfull":
+                return False
         except requests.exceptions.RequestException as e:
             logger.error("Error during PHI API request: %s", e)
-            raise
+        except ResourceNotFoundError as e:
+            logger.error("Resource not found: %s", e)
         return True
 
     def add_to_blocklist(self, text: str, category: str | None):
@@ -190,7 +187,7 @@ class ContentFilteringApp:
         Returns:
             None
         """
-        
+
         blocklist_name = self.blocklist
         blocklist_item = TextBlocklistItem(description=category, text=text)
         options = AddOrUpdateTextBlocklistItemsOptions(blocklist_items=[blocklist_item])
@@ -221,4 +218,3 @@ if __name__ == "__main__":
     A história de João é um exemplo inspirador de como seguir sua paixão pode levar ao sucesso.
     """
     content = client_code(blocklist, text)
-    print(content)
