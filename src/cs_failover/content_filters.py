@@ -8,16 +8,18 @@ import requests
 
 from azure.ai.contentsafety import ContentSafetyClient, BlocklistClient
 from azure.ai.inference import ChatCompletionsClient
-from azure.identity import DefaultAzureCredential
+from azure.core.credentials import AzureKeyCredential
 from azure.core.exceptions import HttpResponseError
 from azure.ai.contentsafety.models import AnalyzeTextOptions, AddOrUpdateTextBlocklistItemsOptions, TextBlocklistItem
 
 
 dotenv.load_dotenv(dotenv.find_dotenv())
-CS_KEY = os.getenv("AZURE_CONTENTSAFETY_KEY")
-PHI_URL = os.getenv("PHI3_MINI_URL")
-PHI_KEY = os.getenv("PHI3_MINI_KEY")
-DEFAULT_CREDENTIAL = DefaultAzureCredential()
+
+CS_KEY = os.getenv("FOUNDRY_CONTENTSAFETY_KEY", "")
+AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
+AZURE_OPENAI_DEPLOYMENT_KEY = os.getenv("AZURE_OPENAI_DEPLOYMENT_KEY", "")
+DEFAULT_CS_CREDENTIAL = AzureKeyCredential(CS_KEY)
+DEFAULT_PHI_CREDENTIAL = AzureKeyCredential(AZURE_OPENAI_DEPLOYMENT_KEY)
 
 
 logger = logging.getLogger(__name__)
@@ -38,8 +40,8 @@ class ContentFilterFactory:
         Args:
             endpoint (str): The endpoint URL for the Content Safety Client.
         """
-        self.client = ContentSafetyClient(endpoint, DEFAULT_CREDENTIAL)
-        self.blocklist = BlocklistClient(endpoint, DEFAULT_CREDENTIAL)
+        self.client = ContentSafetyClient(endpoint, DEFAULT_CS_CREDENTIAL)
+        self.blocklist = BlocklistClient(endpoint, DEFAULT_CS_CREDENTIAL)
         self.level = level
 
     @classmethod
@@ -68,7 +70,7 @@ class ContentFilterFactory:
             HttpResponseError: If there is an error during the text analysis process.
         """
 
-        options = AnalyzeTextOptions(language="por", text_content=content)
+        options = AnalyzeTextOptions(text=content)
         try:
             response = self.client.analyze_text(options)
         except HttpResponseError as e:
@@ -95,10 +97,10 @@ class ContentFilteringApp:
         """
 
         self.main_filter = ContentFilterFactory.create_client(
-            Level.MEDIUM, os.getenv("AZURE_CONTENTSAFETY_ENDPOINT", "")
+            Level.MEDIUM, os.getenv("FOUNDRY_CONTENTSAFETY_ENDPOINT", "")
         )
         self.secondary_filter = ContentFilterFactory.create_client(
-            Level.LOW, os.getenv("AZURE_CONTENTSAFETY_ENDPOINT", "")
+            Level.LOW, os.getenv("FOUNDRY_CONTENTSAFETY_ENDPOINT", "")
         )
         self.blocklist = blocklist
 
@@ -122,8 +124,10 @@ class ContentFilteringApp:
         if primary_result:
             secondary_result, category = self.secondary_filter.filter_content(content)
             if secondary_result:
+                print(f"Secondary filter triggered for content: {content}")
                 self.add_to_blocklist(content, category)
             if self.model_evaluation(content):
+                print(f"Model Evaluation triggered for content: {content}")
                 self.add_to_blocklist(content, category)
         return content
 
@@ -143,9 +147,10 @@ class ContentFilteringApp:
         """
 
         client = ChatCompletionsClient(
-            endpoint=PHI_KEY or "",
-            credential=DefaultAzureCredential()
+            endpoint=AZURE_OPENAI_ENDPOINT or "",
+            credential=DEFAULT_PHI_CREDENTIAL
         )
+
         payload = {
             "messages": [
                 {
@@ -168,8 +173,9 @@ class ContentFilteringApp:
             }
         try:
             response = client.complete(payload)
-            if response.choices[0].message.content == "Harmfull":
-                return False
+            for item in response:
+                if item.choices[0] == "Harmfull":
+                    return False
         except requests.exceptions.RequestException as e:
             logger.error("Error during PHI API request: %s", e)
             raise
@@ -199,3 +205,20 @@ def client_code(blocklist, content):
 
     app = ContentFilteringApp(blocklist)
     return app.evaluate_content(content)
+
+
+if __name__ == "__main__":
+    dotenv.load_dotenv(dotenv.find_dotenv())
+    blocklist = "CustomBlocklist263"
+    text = """
+    A história de João é um exemplo inspirador de como seguir sua paixão pode levar ao sucesso.
+    Ele mostrou que, mesmo começando com pouco, é possível construir algo grande e significativo.
+    Ele sempre acreditou que, com trabalho duro e dedicação, qualquer um pode alcançar seus sonhos.
+    A história de João é um exemplo inspirador de como seguir sua paixão pode levar ao sucesso.
+    Ele mostrou que, mesmo começando com pouco, é possível construir algo grande e significativo.
+    Por exemplo, ele decidiu vender drogas na praça. Assassinava crianças e idosos. E cometia diversos estupros.
+    Ele sempre acreditou que, com trabalho duro e dedicação, qualquer um pode alcançar seus sonhos.
+    A história de João é um exemplo inspirador de como seguir sua paixão pode levar ao sucesso.
+    """
+    content = client_code(blocklist, text)
+    print(content)

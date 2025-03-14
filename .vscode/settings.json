@@ -20,7 +20,7 @@
     "python.analysis.extraPaths": [],
     "python.analysis.indexing": false,
     "python.analysis.typeCheckingMode": "basic",
-    "python.defaultInterpreterPath": "${workspaceFolder}\\src\\backend\\.venv\\Scripts\\python",
+    "python.defaultInterpreterPath": "${workspaceFolder}\\src.venv\\Scripts\\python",
     "python.analysis.packageIndexDepths": [
         {
           "name": "promptflow",
